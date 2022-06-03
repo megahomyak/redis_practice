@@ -51,14 +51,16 @@ async fn calculate_factorial<'output>(
     let (result, cache_status) = match cached_number {
         Ok(result) => (result, "hit"),
         Err(error) => {
-            if error.kind() != redis::ErrorKind::TypeError {
-                error!("{}", error);
-            }
-            let mut result = BigUint::new(vec![1]);
-            for factor in 2..=input_number {
-                result *= factor;
-            }
-            let result = result.to_string();
+            let result = tokio::task::spawn_blocking(move || {
+                if error.kind() != redis::ErrorKind::TypeError {
+                    error!("{}", error);
+                }
+                let mut result = BigUint::new(vec![1]);
+                for factor in 2..=input_number {
+                    result *= factor;
+                }
+                result.to_string()
+            }).await.unwrap();
             if let Err(err) = state
                 .redis_connection
                 .lock()
